@@ -1,0 +1,238 @@
+<!-- app/templates/posts_scans.html -->
+{% extends "base.html" %}
+{% block title %}Post Detail Scans{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-4">
+    <h1 class="text-3xl font-bold text-base-content mb-4">Post Detail Scans</h1>
+    
+    <!-- Buttons -->
+    <div class="flex gap-2">
+        <button class="btn btn-primary" onclick="newScanModal.showModal()">New Post Detail Scan</button>
+        <button class="btn btn-secondary" onclick="refreshScans()">Refresh Scans</button>
+    </div>
+
+    <!-- Modal for New Post Detail Scan -->
+    <dialog id="newScanModal" class="modal">
+        <div class="modal-box">
+            <h3 class="font-bold text-lg">Create New Post Detail Scan</h3>
+            <form id="newScanForm" class="flex flex-col gap-4 mt-4">
+                <!-- Scan Name -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Scan Name</span>
+                    </label>
+                    <input type="text" name="scan_name" placeholder="Enter scan name" class="input input-bordered w-full" required />
+                </div>
+
+                <!-- Completed Post Scan Dropdown -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Source Post Scan</span>
+                    </label>
+                    <select name="source_scan_name" class="select select-bordered w-full" required>
+                        <option disabled selected>Select completed post scan</option>
+                    </select>
+                </div>
+
+                <!-- Batch Size -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Batch Size</span>
+                    </label>
+                    <input type="number" name="batch_size" placeholder="Enter number of posts per batch" class="input input-bordered w-full" min="1" required />
+                </div>
+
+                <!-- Site Link -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text">Site Link</span>
+                    </label>
+                    <input type="url" name="site_url" placeholder="Enter site URL" class="input input-bordered w-full" required />
+                </div>
+
+                <!-- Modal Action Buttons -->
+                <div class="modal-action">
+                    <button type="submit" class="btn btn-primary">Create and Start</button>
+                    <button type="button" class="btn btn-ghost">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </dialog>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+        <table class="table w-full table-zebra" id="scansTable">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Scan Name</th>
+                    <th>Source Post Scan</th>
+                    <th>Start Date</th>
+                    <th>Completion Date</th>
+                    <th>Scraped Posts</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Dynamically populated -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+async function refreshScans() {
+    try {
+        const response = await fetch('/api/posts-scanner/list');
+        const scans = await response.json();
+        const tbody = document.querySelector('#scansTable tbody');
+        tbody.innerHTML = '';
+
+        if (scans.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No post detail scans available.</td></tr>';
+        } else {
+            scans.forEach(scan => {
+                const statusBadge = scan.status === 'completed' ? 'badge-success' :
+                                  scan.status === 'running' ? 'badge-warning' :
+                                  'badge-error';
+                
+                const row = `
+                    <tr>
+                        <td>${scan.id}</td>
+                        <td>${scan.scan_name}</td>
+                        <td>${scan.source_scan_name}</td>
+                        <td>${scan.start_date || '-'}</td>
+                        <td>${scan.completion_date || '-'}</td>
+                        <td>${scan.scraped_posts || 0}</td>
+                        <td>
+                            <div class="flex gap-2">
+                                <button class="btn btn-sm btn-success" onclick="startScan(${scan.id})" ${scan.status === 'running' ? 'disabled' : ''}>Start</button>
+                                <button class="btn btn-sm btn-info" onclick="viewResults(${scan.id}, '${scan.scan_name}')">View</button>
+                                <button class="btn btn-sm btn-error" onclick="deleteScan(${scan.id})">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+    } catch (error) {
+        console.error('Error refreshing scans:', error);
+        alert('Failed to load scans');
+    }
+}
+
+async function startScan(scanId) {
+    try {
+        const formData = JSON.parse(sessionStorage.getItem('lastScanFormData') || '{}');
+        const response = await fetch(`/api/posts-scanner/${scanId}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                batch_size: formData.batch_size || 10,
+                site_url: formData.site_url || ''
+            })
+        });
+        const result = await response.json();
+        if (response.ok) {
+            alert(result.flash.text);
+            refreshScans();
+        } else {
+            alert(result.flash.text || 'Failed to start scan');
+        }
+    } catch (error) {
+        console.error('Error starting scan:', error);
+        alert('Failed to start scan');
+    }
+}
+
+async function deleteScan(scanId) {
+    if (!confirm('Are you sure you want to delete this scan?')) return;
+    
+    try {
+        const response = await fetch(`/api/posts-scanner/${scanId}`, {
+            method: 'DELETE'
+        });
+        const result = await response.json();
+        if (response.ok) {
+            alert(result.flash.text);
+            refreshScans();
+        } else {
+            alert(result.flash.text || 'Failed to delete scan');
+        }
+    } catch (error) {
+        console.error('Error deleting scan:', error);
+        alert('Failed to delete scan');
+    }
+}
+
+function viewResults(scanId, scanName) {
+    window.location.href = `/posts-scan-result/${scanId}?name=${encodeURIComponent(scanName)}`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Load completed post scans for dropdown
+    fetch('/api/posts-scanner/completed-post-scans')
+        .then(response => response.json())
+        .then(scans => {
+            const select = document.querySelector('select[name="source_scan_name"]');
+            select.innerHTML = '<option disabled selected>Select completed post scan</option>';
+            scans.forEach(scan => {
+                const option = document.createElement('option');
+                option.value = scan;
+                option.textContent = scan;
+                select.appendChild(option);
+            });
+        })
+        .catch(error => console.error('Error loading completed post scans:', error));
+
+    // Handle form submission
+    document.querySelector('#newScanForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = {
+            scan_name: formData.get('scan_name'),
+            source_scan_name: formData.get('source_scan_name'),
+            batch_size: parseInt(formData.get('batch_size')),
+            site_url: formData.get('site_url')
+        };
+
+        sessionStorage.setItem('lastScanFormData', JSON.stringify(data));
+
+        try {
+            const response = await fetch('/api/posts-scanner/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            if (response.ok) {
+                const scanResponse = await fetch(`/api/posts-scanner/${result.id}/start`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (scanResponse.ok) {
+                    alert('Scan created and started successfully');
+                    document.getElementById('newScanModal').close();
+                    refreshScans();
+                } else {
+                    alert('Failed to start scan');
+                }
+            } else {
+                alert(result.flash.text || 'Failed to create scan');
+            }
+        } catch (error) {
+            console.error('Error creating/starting scan:', error);
+            alert('Error creating/starting scan');
+        }
+    });
+
+    // Initial load
+    refreshScans();
+});
+</script>
+{% endblock %}

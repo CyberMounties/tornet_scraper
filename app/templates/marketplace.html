@@ -1,0 +1,452 @@
+<!-- app/templates/marketplace.html -->
+{% extends "base.html" %}
+{% block title %}Marketplace Scan{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold text-base-content mb-4">Marketplace Scan</h1>
+
+<!-- Tabs -->
+<div class="tabs tabs-boxed mb-4">
+    <a class="tab tab-active" onclick="openTab('pagination')">Marketplace Pagination</a>
+    <a class="tab" onclick="openTab('posts')">Marketplace Posts</a>
+</div>
+
+<!-- Marketplace Pagination Tab -->
+<div id="pagination" class="tab-content" style="display: block;">
+    <h2 class="text-2xl font-semibold mb-4">Pagination Scans</h2>
+    <label for="enumerate-modal" class="btn btn-primary mb-4">Enumerate Pages</label>
+
+    <!-- Pagination Scans Table -->
+    <div class="overflow-x-auto">
+        <table class="table w-full table-zebra" id="MarketplacePaginationScan">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Scan Name</th>
+                    <th>Max Pagination</th>
+                    <th>Creation Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if pagination_scans %}
+                    {% for scan in pagination_scans %}
+                    <tr>
+                        <td>{{ scan.id }}</td>
+                        <td>{{ scan.scan_name }}</td>
+                        <td>{{ scan.max_page }}</td>
+                        <td>{{ scan.timestamp.isoformat() }}</td>
+                        <td>
+                            <label for="view-modal-{{ scan.id }}" class="btn btn-sm btn-info mr-2">View</label>
+                            <button onclick="deleteScan({{ scan.id }})" class="btn btn-sm btn-error">Delete</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="text-center">No pagination scans available.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Marketplace Posts Tab -->
+<div id="posts" class="tab-content" style="display: none;">
+    <h2 class="text-2xl font-semibold mb-4">Post Scans</h2>
+    <div class="flex gap-2 mb-4">
+        <label for="enumerate-posts-modal" class="btn btn-primary">Enumerate Posts</label>
+        <button onclick="refreshScans()" class="btn btn-secondary">Refresh Scans</button>
+    </div>
+
+    <!-- Post Scans Table -->
+    <div class="overflow-x-auto">
+        <table class="table w-full table-zebra" id="MarketplacePostScan">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Scan Name</th>
+                    <th>Pagination Scan Name</th>
+                    <th>Start Date</th>
+                    <th>Completion Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="post-scans-tbody">
+                {% if post_scans %}
+                    {% for scan in post_scans %}
+                    <tr data-scan-id="{{ scan.id }}">
+                        <td>{{ scan.id }}</td>
+                        <td>{{ scan.scan_name }}</td>
+                        <td>{{ scan.pagination_scan_name }}</td>
+                        <td>{{ scan.start_date.isoformat() if scan.start_date else '-' }}</td>
+                        <td>{{ scan.completion_date.isoformat() if scan.completion_date else '-' }}</td>
+                        <td class="scan-status">
+                            {% set status = scan.status | string | lower | replace('scanstatus.', '') %}
+                            {% if status == 'completed' %}
+                                <span class="badge badge-success">Completed</span>
+                            {% elif status == 'running' %}
+                                <span class="badge badge-warning">Running</span>
+                            {% elif status == 'stopped' %}
+                                <span class="badge badge-neutral">Stopped</span>
+                            {% else %}
+                                <span class="badge badge-neutral">{{ status | capitalize }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if status != 'running' %}
+                                <button onclick="startPostScan({{ scan.id }})" class="btn btn-sm btn-success mr-2">Start</button>
+                            {% endif %}
+                            <label for="view-posts-modal-{{ scan.id }}" class="btn btn-sm btn-info mr-2">View</label>
+                            <button onclick="deletePostScan({{ scan.id }})" class="btn btn-sm btn-error">Delete</button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center">No post scans available.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Enumerate Pages Modal -->
+<input type="checkbox" id="enumerate-modal" class="modal-toggle" />
+<div class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Enumerate Pagination Pages</h3>
+        <form id="enumerate-form">
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">Scan Name</span>
+                </label>
+                <input type="text" name="scan_name" placeholder="Enter scan name" class="input input-bordered w-full" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">Pagination URL</span>
+                </label>
+                <input type="url" name="pagination_url" placeholder="e.g., http://example.onion/category?page={page}" class="input input-bordered w-full" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">Max Pagination Number</span>
+                </label>
+                <input type="number" name="max_page" placeholder="Enter max page number" class="input input-bordered w-full" min="1" required />
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary">Start Scan</button>
+                <label for="enumerate-modal" class="btn btn-ghost">Cancel</label>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Enumerate Posts Modal -->
+<input type="checkbox" id="enumerate-posts-modal" class="modal-toggle" />
+<div class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Enumerate Posts</h3>
+        <form id="enumerate-posts-form">
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">Scan Name</span>
+                </label>
+                <input type="text" name="scan_name" placeholder="Enter scan name" class="input input-bordered w-full" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">Pagination Scan</span>
+                </label>
+                <select name="pagination_scan_name" class="select select-bordered w-full" required>
+                    <option value="" disabled selected>Select a pagination scan</option>
+                    {% for scan in pagination_scans %}
+                        <option value="{{ scan.scan_name }}">{{ scan.scan_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary">Start Scan</button>
+                <label for="enumerate-posts-modal" class="btn btn-ghost">Cancel</label>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- View Pagination Scan Modal -->
+{% for scan in pagination_scans %}
+<input type="checkbox" id="view-modal-{{ scan.id }}" class="modal-toggle" />
+<div class="modal">
+    <div class="modal-box w-11/12 max-w-5xl">
+        <h3 class="font-bold text-lg">Scan Details: {{ scan.scan_name }}</h3>
+        <div class="form-control mb-4">
+            <label class="label">
+                <span class="label-text">Scan Name</span>
+            </label>
+            <input type="text" value="{{ scan.scan_name }}" class="input input-bordered w-full" readonly />
+        </div>
+        <div class="form-control mb-4">
+            <label class="label">
+                <span class="label-text">Pagination URL</span>
+            </label>
+            <input type="text" value="{{ scan.pagination_url }}" class="input input-bordered w-full" readonly />
+        </div>
+        <div class="form-control mb-4">
+            <label class="label">
+                <span class="label-text">Max Pagination</span>
+            </label>
+            <input type="text" value="{{ scan.max_page }}" class="input input-bordered w-full" readonly />
+        </div>
+        <div class="form-control mb-4">
+            <label class="label">
+                <span class="label-text">Pagination Batches</span>
+            </label>
+            <textarea class="textarea textarea-bordered w-full h-64" readonly>{{ scan.batches | tojson(indent=2) | safe }}</textarea>
+        </div>
+        <div class="modal-action">
+            <label for="view-modal-{{ scan.id }}" class="btn btn-ghost">Close</label>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- View Posts Modal -->
+{% for scan in post_scans %}
+<input type="checkbox" id="view-posts-modal-{{ scan.id }}" class="modal-toggle" />
+<div class="modal">
+    <div class="modal-box w-11/12 max-w-5xl">
+        <h3 class="font-bold text-lg">Posts for Scan: {{ scan.scan_name }}</h3>
+        <div class="overflow-x-auto">
+            <table class="table w-full table-zebra">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Title</th>
+                        <th>Author</th>
+                        <th>Link</th>
+                    </tr>
+                </thead>
+                <tbody id="posts-table-{{ scan.id }}">
+                    <!-- Populated via JavaScript -->
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-action">
+            <label for="view-posts-modal-{{ scan.id }}" class="btn btn-ghost">Close</label>
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<script>
+    // Ensure script is loaded correctly
+    document.addEventListener('DOMContentLoaded', () => {
+        // Initialize pagination tab
+        openTab('pagination');
+    });
+
+    // Tab switching
+    function openTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(tab => tab.style.display = 'none');
+        document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('tab-active'));
+        document.getElementById(tabName).style.display = 'block';
+        document.querySelector(`a[onclick="openTab('${tabName}')"]`).classList.add('tab-active');
+    }
+
+    // Manual refresh scans function
+    async function refreshScans() {
+        try {
+            const response = await fetch('/api/marketplace-scan/posts/list');
+            const scans = await response.json();
+            const tbody = document.getElementById('post-scans-tbody');
+            tbody.innerHTML = '';
+            if (scans.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center">No post scans available.</td></tr>';
+            } else {
+                scans.forEach(scan => {
+                    const row = document.createElement('tr');
+                    row.setAttribute('data-scan-id', scan.id);
+                    // Clean status by removing 'Scanstatus.' prefix and converting to lowercase
+                    const status = scan.status.replace('ScanStatus.', '').toLowerCase();
+                    let statusBadge;
+                    switch (status) {
+                        case 'completed':
+                            statusBadge = '<span class="badge badge-success">Completed</span>';
+                            break;
+                        case 'running':
+                            statusBadge = '<span class="badge badge-warning">Running</span>';
+                            break;
+                        case 'stopped':
+                            statusBadge = '<span class="badge badge-neutral">Stopped</span>';
+                            break;
+                        default:
+                            statusBadge = `<span class="badge badge-neutral">${status.charAt(0).toUpperCase() + status.slice(1)}</span>`;
+                    }
+                    row.innerHTML = `
+                        <td>${scan.id}</td>
+                        <td>${scan.scan_name}</td>
+                        <td>${scan.pagination_scan_name}</td>
+                        <td>${scan.start_date || '-'}</td>
+                        <td>${scan.completion_date || '-'}</td>
+                        <td class="scan-status">${statusBadge}</td>
+                        <td>
+                            ${status !== 'running' ?
+                                `<button onclick="startPostScan(${scan.id})" class="btn btn-sm btn-success mr-2">Start</button>` : ''}
+                            <label for="view-posts-modal-${scan.id}" class="btn btn-sm btn-info mr-2">View</label>
+                            <button onclick="deletePostScan(${scan.id})" class="btn btn-sm btn-error">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+        } catch (error) {
+            console.error('Error refreshing scan statuses:', error);
+            alert('Error refreshing scans: ' + error.message);
+        }
+    }
+
+    // Handle enumerate pages form submission
+    document.getElementById('enumerate-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = {
+            scan_name: formData.get('scan_name'),
+            pagination_url: formData.get('pagination_url'),
+            max_page: parseInt(formData.get('max_page'))
+        };
+
+        try {
+            const response = await fetch('/api/marketplace-scan/enumerate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert(result.detail || 'Error starting scan');
+            }
+        } catch (error) {
+            alert('Error starting scan: ' + error.message);
+        }
+    });
+
+    // Handle enumerate posts form submission
+    document.getElementById('enumerate-posts-form').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const formData = new FormData(this);
+        const data = {
+            scan_name: formData.get('scan_name'),
+            pagination_scan_name: formData.get('pagination_scan_name')
+        };
+
+        try {
+            const response = await fetch('/api/marketplace-scan/posts/enumerate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (response.ok) {
+                window.location.reload();
+            } else {
+                alert(result.detail || 'Error creating post scan');
+            }
+        } catch (error) {
+            alert('Error creating post scan: ' + error.message);
+        }
+    });
+
+    // Handle start post scan
+    async function startPostScan(scanId) {
+        try {
+            const response = await fetch(`/api/marketplace-scan/posts/${scanId}/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await response.json();
+            if (response.ok) {
+                await refreshScans();
+            } else {
+                alert(result.detail || 'Error starting post scan');
+            }
+        } catch (error) {
+            alert('Error starting post scan: ' + error.message);
+        }
+    }
+
+    // Handle delete post scan
+    async function deletePostScan(scanId) {
+        if (confirm('Are you sure you want to delete this post scan?')) {
+            try {
+                const response = await fetch(`/api/marketplace-scan/posts/${scanId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert(result.detail || 'Error deleting post scan');
+                }
+            } catch (error) {
+                alert('Error deleting post scan: ' + error.message);
+            }
+        }
+    }
+
+    // Handle view posts modal
+    document.querySelectorAll('[id^="view-posts-modal-"]').forEach(modal => {
+        modal.addEventListener('change', async function(e) {
+            if (e.target.checked) {
+                const scanId = this.id.split('-').pop();
+                try {
+                    const response = await fetch(`/api/marketplace-scan/posts/${scanId}/posts`);
+                    const posts = await response.json();
+                    const tbody = document.getElementById(`posts-table-${scanId}`);
+                    tbody.innerHTML = '';
+                    if (posts.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" class="text-center">No posts available.</td></tr>';
+                    } else {
+                        posts.forEach(post => {
+                            const row = document.createElement('tr');
+                            row.innerHTML = `
+                                <td>${post.timestamp}</td>
+                                <td>${post.title}</td>
+                                <td>${post.author}</td>
+                                <td><a href="${post.link}" class="link">${post.link}</a></td>
+                            `;
+                            tbody.appendChild(row);
+                        });
+                    }
+                } catch (error) {
+                    alert('Error loading posts: ' + error.message);
+                }
+            }
+        });
+    });
+
+    // Handle delete pagination scan
+    async function deleteScan(scanId) {
+        if (confirm('Are you sure you want to delete this scan?')) {
+            try {
+                const response = await fetch(`/api/marketplace-scan/${scanId}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert(result.detail || 'Error deleting scan');
+                }
+            } catch (error) {
+                alert('Error deleting scan: ' + error.message);
+            }
+        }
+    }
+</script>
+{% endblock %}

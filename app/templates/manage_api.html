@@ -1,0 +1,429 @@
+<!-- app/templates/manage_api.html -->
+{% extends "base.html" %}
+{% block title %}API Management{% endblock %}
+
+{% block content %}
+<style>
+    .loading.hidden {
+        display: none;
+    }
+    .loading {
+        display: inline-block;
+    }
+</style>
+
+<h1 class="text-3xl font-bold mb-6">API Management</h1>
+
+<!-- API Buttons -->
+<div class="flex gap-4 mb-6">
+    <button class="btn btn-primary" onclick="openModal('addDeepLModal')">Add DeepL API</button>
+    <button class="btn btn-primary" onclick="openModal('addIABModal')">Add IAB API</button>
+    <button class="btn btn-primary" onclick="openModal('addCaptchaModal')">Add Captcha API</button>
+</div>
+
+<!-- DeepL API Modal -->
+<dialog id="addDeepLModal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold">Add DeepL API</h3>
+        <form id="addDeepLForm" onsubmit="event.preventDefault(); createDeepLAPI();">
+            <div class="form-control mb-4">
+                <label class="label" for="deepl-api-name">Name</label>
+                <input type="text" id="deepl-api-name" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="deepl-api-key">DeepL API Key</label>
+                <input type="text" id="deepl-api-key" class="input input-bordered" required />
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary">Add API</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('addDeepLModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- IAB API Modal -->
+<dialog id="addIABModal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold">Add IAB API (Anthropic)</h3>
+        <form id="addIABForm" onsubmit="event.preventDefault(); createIABAPI();">
+            <div class="form-control mb-4">
+                <label class="label" for="iab-api-name">Name</label>
+                <input type="text" id="iab-api-name" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="iab-api-key">API Key</label>
+                <input type="text" id="iab-api-key" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="iab-max-tokens">Max Tokens</label>
+                <input type="number" id="iab-max-tokens" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="iab-model">Model</label>
+                <input type="text" id="iab-model" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="iab-prompt">Prompt Text</label>
+                <textarea id="iab-prompt" class="textarea textarea-bordered" required></textarea>
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary">Add API</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('addIABModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Captcha API Modal -->
+<dialog id="addCaptchaModal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold">Add Captcha API (OpenAI)</h3>
+        <form id="addCaptchaForm" onsubmit="event.preventDefault(); createCaptchaAPI();">
+            <div class="form-control mb-4">
+                <label class="label" for="captcha-api-name">Name</label>
+                <input type="text" id="captcha-api-name" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="captcha-api-key">API Key</label>
+                <input type="text" id="captcha-api-key" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="captcha-max-tokens">Max Tokens</label>
+                <input type="number" id="captcha-max-tokens" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="captcha-model">Model</label>
+                <input type="text" id="captcha-model" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="captcha-prompt">Prompt Text</label>
+                <textarea id="captcha-prompt" class="textarea textarea-bordered" required></textarea>
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary">Add API</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('addCaptchaModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Edit API Modal -->
+<dialog id="editAPIModal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold">Edit API</h3>
+        <form id="editAPIForm" onsubmit="event.preventDefault(); updateAPI();">
+            <input type="hidden" id="edit-api-id" />
+            <div class="form-control mb-4">
+                <label class="label" for="edit-api-type">API Type</label>
+                <input type="text" id="edit-api-type" class="input input-bordered" readonly />
+            </div>
+            <div class="form-control mb-4">
+                <label class="label" for="edit-api-name">Name</label>
+                <input type="text" id="edit-api-name" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4 edit-api-key-field">
+                <label class="label" for="edit-api-key">API Key</label>
+                <input type="text" id="edit-api-key" class="input input-bordered" required />
+            </div>
+            <div class="form-control mb-4 edit-max-tokens-field hidden">
+                <label class="label" for="edit-max-tokens">Max Tokens</label>
+                <input type="number" id="edit-max-tokens" class="input input-bordered" />
+            </div>
+            <div class="form-control mb-4 edit-model-field hidden">
+                <label class="label" for="edit-model">Model</label>
+                <input type="text" id="edit-model" class="input input-bordered" />
+            </div>
+            <div class="form-control mb-4 edit-prompt-field hidden">
+                <label class="label" for="edit-prompt">Prompt Text</label>
+                <textarea id="edit-prompt" class="textarea textarea-bordered"></textarea>
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="button" class="btn btn-ghost" onclick="closeModal('editAPIModal')">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Delete API Modal -->
+<dialog id="deleteAPIModal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold">Confirm Delete API</h3>
+        <p class="py-4">Are you sure you want to delete this API? This action cannot be undone.</p>
+        <input type="hidden" id="delete-api-id" value="">
+        <div class="modal-action">
+            <button class="btn btn-error" onclick="confirmDeleteAPI()">Delete</button>
+            <button type="button" class="btn btn-ghost" onclick="closeModal('deleteAPIModal')">Cancel</button>
+        </div>
+    </div>
+</dialog>
+
+<!-- API Table -->
+<div class="overflow-x-auto">
+    <table class="table table-zebra w-full" id="api-table">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Name</th>
+                <th>Creation Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="api-table-body">
+            {% for api in apis %}
+            <tr data-api-id="{{ api.id }}">
+                <td>{{ api.api_type }}</td>
+                <td>{{ api.api_name }}</td>
+                <td>{{ api.timestamp }}</td>
+                <td>
+                    <span class="badge {{ 'badge-success' if api.is_active else 'badge-error' }}">
+                        {{ 'Active' if api.is_active else 'Inactive' }}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-error" onclick="openDeleteModal('{{ api.id }}')">Delete</button>
+                    <button class="btn btn-sm btn-warning" onclick="openEditModal('{{ api.id }}')">Edit</button>
+                    <button class="btn btn-sm btn-success" onclick="activateAPI('{{ api.id }}', '{{ api.api_type }}')" {% if api.is_active %}disabled{% endif %}>Activate</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+$(document).ready(function () {
+    // Update table every 10 seconds
+    setInterval(updateTable, 10000);
+    updateTable();
+});
+
+function openModal(modalId) {
+    document.getElementById(modalId).showModal();
+}
+
+function closeModal(modalId) {
+    document.getElementById(modalId).close();
+}
+
+function showFlashMessage(category, text) {
+    const alertClass = category === 'success' ? 'alert-success' : 'alert-error';
+    const flashMessage = `
+        <div class="alert ${alertClass} shadow-lg mb-4 flex justify-between items-center flash-message">
+            <div>
+                <span>${text}</span>
+            </div>
+            <button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button>
+        </div>
+    `;
+    $('#flash-messages').prepend(flashMessage);
+}
+
+function updateTable() {
+    $.ajax({
+        url: '/api/manage-api/list',
+        method: 'GET',
+        success: function (response) {
+            const tbody = $('#api-table-body');
+            tbody.empty();
+            response.apis.forEach(api => {
+                // Use raw api_type without formatting
+                const apiType = api.api_type || api.api_provider || 'unknown';
+                const row = `
+                    <tr data-api-id="${api.id}">
+                        <td>${apiType}</td>
+                        <td>${api.api_name}</td>
+                        <td>${api.timestamp}</td>
+                        <td>
+                            <span class="badge ${api.is_active ? 'badge-success' : 'badge-error'}">
+                                ${api.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-error" onclick="openDeleteModal('${api.id}')">Delete</button>
+                            <button class="btn btn-sm btn-warning" onclick="openEditModal('${api.id}')">Edit</button>
+                            <button class="btn btn-sm btn-success" onclick="activateAPI('${api.id}', '${apiType}')" ${api.is_active ? 'disabled' : ''}>Activate</button>
+                        </td>
+                    </tr>
+                `;
+                tbody.append(row);
+            });
+        },
+        error: function (xhr) {
+            showFlashMessage('error', xhr.responseJSON?.detail || 'Failed to fetch API list');
+        }
+    });
+}
+
+function createDeepLAPI() {
+    const data = {
+        api_name: $('#deepl-api-name').val(),
+        api_key: $('#deepl-api-key').val()
+    };
+    $.ajax({
+        url: '/api/manage-api/create/deepl',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function (response) {
+            showFlashMessage('success', response.message);
+            closeModal('addDeepLModal');
+            $('#addDeepLForm')[0].reset();
+            updateTable();
+        },
+        error: function (xhr) {
+            showFlashMessage('error', xhr.responseJSON?.detail || 'Failed to create DeepL API');
+        }
+    });
+}
+
+function createIABAPI() {
+    const data = {
+        api_name: $('#iab-api-name').val(),
+        api_key: $('#iab-api-key').val(),
+        max_tokens: parseInt($('#iab-max-tokens').val()),
+        model: $('#iab-model').val(),
+        prompt: $('#iab-prompt').val()
+    };
+    $.ajax({
+        url: '/api/manage-api/create/iab',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function (response) {
+            showFlashMessage('success', response.message);
+            closeModal('addIABModal');
+            $('#addIABForm')[0].reset();
+            updateTable();
+        },
+        error: function (xhr) {
+            showFlashMessage('error', xhr.responseJSON?.detail || 'Failed to create IAB API');
+        }
+    });
+}
+
+function createCaptchaAPI() {
+    const data = {
+        api_name: $('#captcha-api-name').val(),
+        api_key: $('#captcha-api-key').val(),
+        max_tokens: parseInt($('#captcha-max-tokens').val()),
+        model: $('#captcha-model').val(),
+        prompt: $('#captcha-prompt').val()
+    };
+    $.ajax({
+        url: '/api/manage-api/create/captcha',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function (response) {
+            showFlashMessage('success', response.message);
+            closeModal('addCaptchaModal');
+            $('#addCaptchaForm')[0].reset();
+            updateTable();
+        },
+        error: function (xhr) {
+            showFlashMessage('error', xhr.responseJSON?.detail || 'Failed to create Captcha API');
+        }
+    });
+}
+
+function openDeleteModal(apiId) {
+    $('#delete-api-id').val(apiId);
+    document.getElementById('deleteAPIModal').showModal();
+}
+
+function openEditModal(apiId) {
+    $.ajax({
+        url: `/api/manage-api/get/${apiId}`,
+        method: 'GET',
+        success: function (response) {
+            const api = response.api;
+            $('#edit-api-id').val(api.id);
+            $('#edit-api-type').val(api.api_type || api.api_provider || 'unknown');
+            $('#edit-api-name').val(api.api_name || '');
+            $('#edit-api-key').val(api.api_key || '');
+
+            if (api.api_type === 'deepl_api') {
+                $('.edit-max-tokens-field').addClass('hidden');
+                $('.edit-model-field').addClass('hidden');
+                $('.edit-prompt-field').addClass('hidden');
+                $('.edit-api-key-field').removeClass('hidden');
+            } else {
+                $('.edit-max-tokens-field').removeClass('hidden');
+                $('.edit-model-field').removeClass('hidden');
+                $('.edit-prompt-field').removeClass('hidden');
+                $('.edit-api-key-field').removeClass('hidden');
+                $('#edit-max-tokens').val(api.max_tokens || '');
+                $('#edit-model').val(api.model || '');
+                $('#edit-prompt').val(api.prompt || '');
+            }
+
+            document.getElementById('editAPIModal').showModal();
+        },
+        error: function (xhr) {
+            showFlashMessage('error', xhr.responseJSON?.detail || 'Failed to fetch API details');
+        }
+    });
+}
+
+function updateAPI() {
+    const apiId = $('#edit-api-id').val();
+    const apiType = $('#edit-api-type').val();
+    const data = {
+        api_name: $('#edit-api-name').val(),
+        api_key: $('#edit-api-key').val()
+    };
+    if (apiType !== 'deepl_api') {
+        data.max_tokens = parseInt($('#edit-max-tokens').val()) || null;
+        data.model = $('#edit-model').val() || null;
+        data.prompt = $('#edit-prompt').val() || null;
+    }
+    $.ajax({
+        url: `/api/manage-api/update/${apiId}`,
+        method: 'PUT',
+        contentType: 'application/json',
+        data: JSON.stringify(data),
+        success: function (response) {
+            showFlashMessage('success', response.message);
+            closeModal('editAPIModal');
+            updateTable();
+        },
+        error: function (xhr) {
+            showFlashMessage('error', xhr.responseJSON?.detail || 'Failed to update API');
+        }
+    });
+}
+
+function confirmDeleteAPI() {
+    const apiId = $('#delete-api-id').val();
+    $.ajax({
+        url: `/api/manage-api/delete/${apiId}`,
+        method: 'DELETE',
+        success: function (response) {
+            showFlashMessage('success', response.message);
+            closeModal('deleteAPIModal');
+            updateTable();
+        },
+        error: function (xhr) {
+            showFlashMessage('error', xhr.responseJSON?.detail || 'Failed to delete API');
+        }
+    });
+}
+
+function activateAPI(apiId, apiType) {
+    $.ajax({
+        url: `/api/manage-api/activate/${apiId}`,
+        method: 'POST',
+        success: function (response) {
+            showFlashMessage('success', response.message);
+            updateTable();
+        },
+        error: function (xhr) {
+            showFlashMessage('error', xhr.responseJSON?.detail || 'Failed to activate API');
+        }
+    });
+}
+</script>
+{% endblock %}

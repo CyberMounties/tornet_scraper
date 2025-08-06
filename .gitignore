@@ -1,0 +1,27 @@
+# Python compiled files
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+
+# Database-specific
+instance/
+*.sqlite
+*.db
+
+# Environment variables
+.env
+
+# Logs
+*.log
+logs/
+
+# IDE and editor files
+.vscode/
+
+# OS-specific files
+.DS_Store
+Thumbs.db

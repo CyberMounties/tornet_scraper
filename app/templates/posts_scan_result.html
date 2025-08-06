@@ -1,0 +1,263 @@
+<!-- app/templates/posts_scan_result.html -->
+{% extends "base.html" %}
+{% block title %}Results: {{ scan_name }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-base-content mb-4">Results for {{ scan_name }}</h1>
+    
+    <!-- Search and Filter -->
+    <div class="flex flex-row justify-between items-center mb-4 gap-4">
+        <div class="form-control flex flex-row gap-4">
+            <input type="text" id="searchInput" placeholder="Search by post title..." class="input input-bordered w-full max-w-xs">
+            <select id="sentimentFilter" class="select select-bordered">
+                <option value="all">All Sentiments</option>
+                <option value="positive">Positive</option>
+                <option value="negative">Negative</option>
+                <option value="neutral">Neutral</option>
+            </select>
+        </div>
+        <button id="downloadSelected" class="btn btn-secondary">Download Selected</button>
+    </div>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+        <table class="table w-full" id="resultsTable">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAll" class="checkbox"></th>
+                    <th>Batch</th>
+                    <th>Post Title</th>
+                    <th>Timestamp</th>
+                    <th>Author</th>
+                    <th>Positive</th>
+                    <th>Negative</th>
+                    <th>Neutral</th>
+                    <th>Sentiment</th>
+                    <th>Language</th>
+                    <th>Translated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Dynamically populated -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- View Modal -->
+<div class="modal" id="viewModal">
+    <div class="modal-box w-11/12 max-w-5xl">
+        <h3 class="font-bold text-lg">Post Details</h3>
+        <div class="py-4">
+            <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                    <p><strong>Title:</strong> <span id="modalTitle"></span></p>
+                    <p><strong>Timestamp:</strong> <span id="modalTimestamp"></span></p>
+                    <p><strong>Author:</strong> <span id="modalAuthor"></span></p>
+                    <p><strong>Batch:</strong> <span id="modalBatch"></span></p>
+                </div>
+                <div>
+                    <p><strong>Positive Score:</strong> <span id="modalPositive"></span></p>
+                    <p><strong>Negative Score:</strong> <span id="modalNegative"></span></p>
+                    <p><strong>Neutral Score:</strong> <span id="modalNeutral"></span></p>
+                    <p><strong>Sentiment:</strong> <span id="modalSentiment"></span></p>
+                    <p><strong>Language:</strong> <span id="modalLanguage"></span></p>
+                    <p><strong>Translated:</strong> <span id="modalTranslated"></span></p>
+                </div>
+            </div>
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">Post Link</span>
+                </label>
+                <input type="text" id="modalLink" class="input input-bordered" readonly>
+            </div>
+            <div class="form-control mb-4">
+                <label class="label">
+                    <span class="label-text">Original Content</span>
+                </label>
+                <textarea class="textarea textarea-bordered h-24" id="modalOriginalContent" readonly></textarea>
+            </div>
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text">Translated Content</span>
+                </label>
+                <textarea class="textarea textarea-bordered h-24" id="modalTranslatedContent" readonly></textarea>
+            </div>
+        </div>
+        <div class="modal-action">
+            <button class="btn close-modal">Close</button>
+        </div>
+    </div>
+</div>
+
+<script>
+$(document).ready(function() {
+    const scanId = window.location.pathname.split('/')[2];
+    
+    async function loadResults() {
+        try {
+            const response = await fetch(`/api/posts-scanner/${scanId}/results`);
+            const results = await response.json();
+            const tbody = $('#resultsTable tbody');
+            tbody.empty();
+
+            results.forEach(result => {
+                // Determine dominant sentiment
+                let dominantSentiment = 'neutral';
+                if (result.positive_score > result.negative_score && result.positive_score > result.neutral_score) {
+                    dominantSentiment = 'positive';
+                } else if (result.negative_score > result.positive_score && result.negative_score > result.neutral_score) {
+                    dominantSentiment = 'negative';
+                }
+                
+                // Set badge class based on sentiment
+                const badgeClass = dominantSentiment === 'positive' ? 'badge-success' :
+                                  dominantSentiment === 'negative' ? 'badge-error' :
+                                  'badge-neutral';
+                
+                // Truncate title to 20 characters for display
+                const displayTitle = result.title.length > 20 ? result.title.slice(0, 20) + '...' : result.title;
+                
+                const row = `
+                    <tr data-id="${result.id}" data-sentiment="${dominantSentiment}">
+                        <td><input type="checkbox" class="checkbox row-checkbox"></td>
+                        <td>${result.batch_name}</td>
+                        <td>${displayTitle}</td>
+                        <td>${result.timestamp}</td>
+                        <td>${result.author}</td>
+                        <td>${(result.positive_score || 0).toFixed(2)}</td>
+                        <td>${(result.negative_score || 0).toFixed(2)}</td>
+                        <td>${(result.neutral_score || 0).toFixed(2)}</td>
+                        <td><span class="badge ${badgeClass}">${dominantSentiment.charAt(0).toUpperCase() + dominantSentiment.slice(1)}</span></td>
+                        <td>${result.original_language || '-'}</td>
+                        <td>${result.is_translated ? 'Yes' : 'No'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary view-btn" 
+                                    data-link="${result.link}"
+                                    data-title="${result.title}"
+                                    data-timestamp="${result.timestamp}"
+                                    data-author="${result.author}"
+                                    data-batch="${result.batch_name}"
+                                    data-positive="${result.positive_score || 0}"
+                                    data-negative="${result.negative_score || 0}"
+                                    data-neutral="${result.neutral_score || 0}"
+                                    data-sentiment="${dominantSentiment}"
+                                    data-language="${result.original_language || '-'}"
+                                    data-translated="${result.is_translated ? 'Yes' : 'No'}"
+                                    data-original="${result.original_text || ''}"
+                                    data-translated-content="${result.translated_text || ''}">View</button>
+                        </td>
+                    </tr>
+                `;
+                tbody.append(row);
+            });
+        } catch (error) {
+            console.error('Error loading results:', error);
+            alert('Failed to load results');
+        }
+    }
+
+    // Search and filter functionality
+    function filterTable() {
+        const searchValue = $('#searchInput').val().toLowerCase();
+        const sentimentValue = $('#sentimentFilter').val();
+
+        $('#resultsTable tbody tr').each(function() {
+            const title = $(this).find('td').eq(2).text().toLowerCase();
+            const sentiment = $(this).data('sentiment'); // Use data-sentiment attribute
+            let show = true;
+
+            if (searchValue && !title.includes(searchValue)) {
+                show = false;
+            }
+
+            if (sentimentValue !== 'all' && sentiment !== sentimentValue) {
+                show = false;
+            }
+
+            $(this).toggle(show);
+        });
+    }
+
+    $('#searchInput').on('keyup', filterTable);
+    $('#sentimentFilter').on('change', filterTable);
+
+    // Select all checkboxes
+    $('#selectAll').on('change', function() {
+        // Only select visible rows (matching the current filter)
+        $('#resultsTable tbody tr:visible').find('.row-checkbox').prop('checked', $(this).prop('checked'));
+    });
+
+    // View modal
+    $(document).on('click', '.view-btn', function() {
+        const $btn = $(this);
+        
+        $('#modalTitle').text($btn.data('title'));
+        $('#modalTimestamp').text($btn.data('timestamp'));
+        $('#modalAuthor').text($btn.data('author'));
+        $('#modalBatch').text($btn.data('batch'));
+        $('#modalPositive').text($btn.data('positive').toFixed(2));
+        $('#modalNegative').text($btn.data('negative').toFixed(2));
+        $('#modalNeutral').text($btn.data('neutral').toFixed(2));
+        $('#modalSentiment').text($btn.data('sentiment').charAt(0).toUpperCase() + $btn.data('sentiment').slice(1));
+        $('#modalLanguage').text($btn.data('language'));
+        $('#modalTranslated').text($btn.data('translated'));
+        $('#modalLink').val($btn.data('link'));
+        $('#modalOriginalContent').val($btn.data('original'));
+        $('#modalTranslatedContent').val($btn.data('translated-content'));
+
+        $('#viewModal').addClass('modal-open');
+    });
+
+    // Close modal
+    $('.close-modal').on('click', function() {
+        $('#viewModal').removeClass('modal-open');
+    });
+
+    // Download selected posts as JSON
+    $('#downloadSelected').on('click', async function() {
+        const sentimentValue = $('#sentimentFilter').val();
+        const selectedRows = $('.row-checkbox:checked').closest('tr:visible');
+        if (selectedRows.length === 0) {
+            alert('Please select at least one post to download.');
+            return;
+        }
+
+        const postIds = selectedRows.map(function() {
+            return $(this).data('id');
+        }).get();
+
+        try {
+            const response = await fetch(`/api/posts-scanner/${scanId}/download`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ post_ids: postIds })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `scan_${scanId}_results.json`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Error downloading results:', error);
+            alert('Failed to download results');
+        }
+    });
+
+    // Initial load
+    loadResults();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,339 @@
+<!-- app/templates/bot_profile.html -->
+{% extends "base.html" %}
+{% block title %}Manage Bot Profiles{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold text-base-content mb-4">Manage Bot Profiles</h1>
+
+<!-- .onion URL Input -->
+<div class="mb-4">
+    <div class="flex flex-col sm:flex-row gap-2">
+        <input type="text" id="onion-url" placeholder="Enter .onion login URL" class="input input-bordered w-full max-w-xs" />
+        <button class="btn btn-primary" onclick="setOnionUrl()">Update .onion URL</button>
+    </div>
+    <p id="current-onion-url" class="text-sm text-base-content mt-2"></p>
+</div>
+
+<!-- Add Bot, Refresh, and Perform Bot Login Buttons -->
+<div class="mb-4 flex flex-row gap-2 justify-between">
+    <div class="flex gap-2">
+        <button class="btn btn-primary" onclick="openAddModal()">Add Bot</button>
+        <button class="btn btn-secondary" onclick="loadBotProfiles()">Refresh</button>
+    </div>
+    <button id="perform-login-btn" class="btn btn-accent" onclick="performBotLogin()">
+        <span class="hidden loading loading-spinner"></span>
+        Perform Bot Login
+    </button>
+</div>
+
+<!-- Bot Profiles Table -->
+<div class="overflow-x-auto">
+    <table class="table w-full">
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Password</th>
+                <th>Purpose</th>
+                <th>Timestamp</th>
+                <th>Tor Proxy</th>
+                <th>Session</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="bot-profiles-table">
+            <!-- Populated by JavaScript -->
+        </tbody>
+    </table>
+</div>
+
+<!-- Add Bot Modal -->
+<div class="modal" id="add-bot-modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Add Bot Profile</h3>
+        <div class="form-control">
+            <label class="label">Username</label>
+            <input type="text" id="add-username" class="input input-bordered" />
+        </div>
+        <div class="form-control">
+            <label class="label">Password</label>
+            <input type="password" id="add-password" class="input input-bordered" />
+        </div>
+        <div class="form-control">
+            <label class="label">Purpose</label>
+            <select id="add-purpose" class="select select-bordered">
+                <option value="scrape_marketplace">scrape_marketplace</option>
+                <option value="scrape_post">scrape_post</option>
+                <option value="scrape_profile">scrape_profile</option>
+            </select>
+        </div>
+        <div class="form-control">
+            <label class="label">Tor Proxy (optional)</label>
+            <input type="text" id="add-tor-proxy" class="input input-bordered" />
+        </div>
+        <div class="form-control">
+            <label class="label">Session (optional)</label>
+            <textarea id="add-session" class="textarea textarea-bordered" placeholder="Enter session data"></textarea>
+        </div>
+        <div class="modal-action">
+            <button class="btn btn-primary" onclick="createBotProfile()">Save</button>
+            <button class="btn" onclick="closeAddModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Bot Modal -->
+<div class="modal" id="edit-bot-modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Edit Bot Profile</h3>
+        <input type="hidden" id="edit-profile-id" />
+        <div class="form-control">
+            <label class="label">Username</label>
+            <input type="text" id="edit-username" class="input input-bordered" />
+        </div>
+        <div class="form-control">
+            <label class="label">Password</label>
+            <input type="password" id="edit-password" class="input input-bordered" placeholder="Leave blank to keep unchanged" />
+        </div>
+        <div class="form-control">
+            <label class="label">Purpose</label>
+            <select id="edit-purpose" class="select select-bordered">
+                <option value="scrape_marketplace">scrape_marketplace</option>
+                <option value="scrape_post">scrape_post</option>
+                <option value="scrape_profile">scrape_profile</option>
+            </select>
+        </div>
+        <div class="form-control">
+            <label class="label">Tor Proxy (optional)</label>
+            <input type="text" id="edit-tor-proxy" class="input input-bordered" />
+        </div>
+        <div class="form-control">
+            <label class="label">User-Agent (optional)</label>
+            <input type="text" id="edit-user-agent" class="input input-bordered" />
+        </div>
+        <div class="form-control">
+            <label class="label">Session (optional)</label>
+            <textarea id="edit-session" class="textarea textarea-bordered" placeholder="Leave blank to keep unchanged"></textarea>
+        </div>
+        <div class="modal-action">
+            <button class="btn btn-primary" onclick="updateBotProfile()">Save</button>
+            <button class="btn" onclick="closeEditModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal" id="delete-bot-modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Confirm Deletion</h3>
+        <p class="py-4">Are you sure you want to delete this bot profile?</p>
+        <input type="hidden" id="delete-profile-id" />
+        <div class="modal-action">
+            <button class="btn btn-error" onclick="deleteBotProfile()">Delete</button>
+            <button class="btn" onclick="closeDeleteModal()">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Load bot profiles and .onion URL on page load
+    $(document).ready(function() {
+        loadBotProfiles();
+        loadOnionUrl();
+    });
+
+    // Load bot profiles
+    function loadBotProfiles() {
+        $.get('/api/bot-profile/list', function(data) {
+            const tbody = $('#bot-profiles-table');
+            tbody.empty();
+            data.forEach(profile => {
+                const sessionData = profile.session || '';
+                const passwordData = profile.actual_password || '';
+                const userAgentData = profile.user_agent || '';
+                tbody.append(`
+                    <tr>
+                        <td>${profile.username}</td>
+                        <td>${profile.password}</td>
+                        <td>${profile.purpose}</td>
+                        <td>${new Date(profile.timestamp).toLocaleString()}</td>
+                        <td>${profile.tor_proxy || 'None'}</td>
+                        <td>${profile.has_session ? 'True' : 'False'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary mr-2" onclick="openEditModal(${profile.id}, '${profile.username}', '${profile.purpose}', '${profile.tor_proxy || ''}', '${userAgentData}', '${sessionData}', '${passwordData}')">Edit</button>
+                            <button class="btn btn-sm btn-error" onclick="openDeleteModal(${profile.id})">Delete</button>
+                        </td>
+                    </tr>
+                `);
+            });
+        }).fail(function() {
+            $('#flash-messages').append('<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>Error loading bot profiles</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>');
+        });
+    }
+
+    // Load .onion URL
+    function loadOnionUrl() {
+        $.get('/api/bot-profile/onion-url', function(data) {
+            $('#current-onion-url').text(data.url ? `Current .onion URL: ${data.url}` : 'No .onion URL set');
+        });
+    }
+
+    // Set .onion URL
+    function setOnionUrl() {
+        const url = $('#onion-url').val().trim();
+        if (!url) {
+            $('#flash-messages').append('<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>Please enter a valid .onion URL</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>');
+            return;
+        }
+        $.ajax({
+            url: '/api/bot-profile/onion-url',
+            type: 'POST',
+            data: JSON.stringify({ url: url }),
+            contentType: 'application/json',
+            success: function() {
+                $('#onion-url').val('');
+                window.location.reload();
+            },
+            error: function(xhr) {
+                const message = xhr.responseJSON?.detail || 'Error updating .onion URL';
+                $('#flash-messages').append(`<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>${message}</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>`);
+            }
+        });
+    }
+
+    // Perform automated login for all bot profiles
+    function performBotLogin() {
+        const $btn = $('#perform-login-btn');
+        $btn.addClass('btn-disabled').find('.loading').removeClass('hidden');
+        $.ajax({
+            url: '/api/bot-profile/perform-login',
+            type: 'POST',
+            success: function(response) {
+                $btn.removeClass('btn-disabled').find('.loading').addClass('hidden');
+                window.location.reload();
+            },
+            error: function(xhr) {
+                $btn.removeClass('btn-disabled').find('.loading').addClass('hidden');
+                const message = xhr.responseJSON?.detail || 'Error performing bot login';
+                $('#flash-messages').append(`<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>${message}</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>`);
+            }
+        });
+    }
+
+    // Open Add Modal
+    function openAddModal() {
+        $('#add-username').val('');
+        $('#add-password').val('');
+        $('#add-purpose').val('scrape_marketplace');
+        $('#add-tor-proxy').val('');
+        $('#add-session').val('');
+        $('#add-bot-modal').addClass('modal-open');
+    }
+
+    // Close Add Modal
+    function closeAddModal() {
+        $('#add-bot-modal').removeClass('modal-open');
+    }
+
+    // Create Bot Profile
+    function createBotProfile() {
+        const profile = {
+            username: $('#add-username').val().trim(),
+            password: $('#add-password').val().trim(),
+            purpose: $('#add-purpose').val(),
+            tor_proxy: $('#add-tor-proxy').val().trim() || null,
+            session: $('#add-session').val().trim() || null
+        };
+        if (!profile.username || !profile.password) {
+            $('#flash-messages').append('<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>Username and password are required</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>');
+            return;
+        }
+        $.post({
+            url: '/api/bot-profile/create',
+            data: JSON.stringify(profile),
+            contentType: 'application/json',
+            success: function() {
+                closeAddModal();
+                window.location.reload(); 
+            },
+            error: function(xhr) {
+                const message = xhr.responseJSON?.detail || 'Error creating bot profile';
+                $('#flash-messages').append(`<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>${message}</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>`);
+            }
+        });
+    }
+
+    // Open Edit Modal
+    function openEditModal(id, username, purpose, tor_proxy, user_agent, session, password) {
+        $('#edit-profile-id').val(id);
+        $('#edit-username').val(username);
+        $('#edit-password').val(password);
+        $('#edit-purpose').val(purpose);
+        $('#edit-tor-proxy').val(tor_proxy);
+        $('#edit-user-agent').val(user_agent);
+        $('#edit-session').val(session);
+        $('#edit-bot-modal').addClass('modal-open');
+    }
+
+    // Close Edit Modal
+    function closeEditModal() {
+        $('#edit-bot-modal').removeClass('modal-open');
+    }
+
+    // Update Bot Profile
+    function updateBotProfile() {
+        const profile = {
+            username: $('#edit-username').val().trim(),
+            password: $('#edit-password').val().trim() || null,
+            purpose: $('#edit-purpose').val(),
+            tor_proxy: $('#edit-tor-proxy').val().trim() || null,
+            user_agent: $('#edit-user-agent').val().trim() || null,
+            session: $('#edit-session').val().trim() || null
+        };
+        if (!profile.username) {
+            $('#flash-messages').append('<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>Username is required</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>');
+            return;
+        }
+        $.ajax({
+            url: `/api/bot-profile/${$('#edit-profile-id').val()}`,
+            type: 'PUT',
+            data: JSON.stringify(profile),
+            contentType: 'application/json',
+            success: function() {
+                closeEditModal();
+                window.location.reload();
+            },
+            error: function(xhr) {
+                const message = xhr.responseJSON?.detail || 'Error updating bot profile';
+                $('#flash-messages').append(`<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>${message}</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>`);
+            }
+        });
+    }
+
+    // Open Delete Modal
+    function openDeleteModal(id) {
+        $('#delete-profile-id').val(id);
+        $('#delete-bot-modal').addClass('modal-open');
+    }
+
+    // Close Delete Modal
+    function closeDeleteModal() {
+        $('#delete-bot-modal').removeClass('modal-open');
+    }
+
+    // Delete Bot Profile
+    function deleteBotProfile() {
+        $.ajax({
+            url: `/api/bot-profile/${$('#delete-profile-id').val()}`,
+            type: 'DELETE',
+            success: function() {
+                closeDeleteModal();
+                window.location.reload();
+            },
+            error: function(xhr) {
+                const message = xhr.responseJSON?.detail || 'Error deleting bot profile';
+                $('#flash-messages').append(`<div class="alert alert-error shadow-lg mb-4 flash-message"><div><span>${message}</span></div><button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button></div>`);
+            }
+        });
+    }
+</script>
+{% endblock %}

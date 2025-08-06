@@ -1,0 +1,273 @@
+<!-- app/templates/watchlist.html -->
+{% extends "base.html" %}
+{% block title %}Watchlist{% endblock %}
+
+{% block content %}
+
+<h1 class="text-3xl font-bold text-base-content mb-4">Watchlist</h1>
+<div class="flex gap-2 mb-6">
+    <button class="btn btn-primary" onclick="newThreatModal.showModal()">New Threat</button>
+    <button class="btn btn-secondary" id="refreshTable">Refresh Table</button>
+</div>
+
+<!-- Table -->
+<div class="overflow-x-auto">
+    <table class="table w-full" id="watchlistTable">
+        <thead>
+            <tr>
+                <th>Target Name</th>
+                <th>Profile Link</th>
+                <th>Priority</th>
+                <th>Creation date</th>
+                <th>Frequency</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="watchlistBody">
+            <tr><td colspan="6">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal for New Threat -->
+<dialog id="newThreatModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Add New Threat</h3>
+        <form id="newThreatForm" class="form-control">
+            <div class="my-4">
+                <label class="label">
+                    <span class="label-text">Target Name</span>
+                </label>
+                <input type="text" name="target_name" placeholder="Enter target name" class="input input-bordered w-full" required />
+            </div>
+            <div class="my-4">
+                <label class="label">
+                    <span class="label-text">Profile Link</span>
+                </label>
+                <input type="url" name="profile_link" placeholder="Enter profile link" class="input input-bordered w-full" required />
+            </div>
+            <div class="my-4">
+                <label class="label">
+                    <span class="label-text">Priority</span>
+                </label>
+                <select name="priority" class="select select-bordered w-full" required>
+                    <option value="everything">Everything</option>
+                    <option value="posts">Posts Only</option>
+                    <option value="comments">Comments Only</option>
+                </select>
+            </div>
+            <div class="my-4">
+                <label class="label">
+                    <span class="label-text">Frequency</span>
+                </label>
+                <select name="frequency" class="select select-bordered w-full" required>
+                    <option value="every 24 hours">Every 24 hours (low)</option>
+                    <option value="every 12 hours">Every 12 hours (medium)</option>
+                    <option value="every 6 hours">Every 6 hours (high)</option>
+                    <option value="every 1 hour">Every 1 hour (very high)</option>
+                    <option value="every 5 minutes">Every 5 minutes (critical)</option>
+                </select>
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary">Start</button>
+                <button type="button" class="btn btn-ghost" onclick="newThreatModal.close()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<!-- Modal for Edit Threat -->
+<dialog id="editThreatModal" class="modal">
+    <div class="modal-box">
+        <h3 class="font-bold text-lg">Edit Threat</h3>
+        <form id="editThreatForm" class="form-control">
+            <input type="hidden" name="id">
+            <div class="my-4">
+                <label class="label">
+                    <span class="label-text">Target Name</span>
+                </label>
+                <input type="text" name="target_name" placeholder="Enter target name" class="input input-bordered w-full" required />
+            </div>
+            <div class="my-4">
+                <label class="label">
+                    <span class="label-text">Profile Link</span>
+                </label>
+                <input type="url" name="profile_link" placeholder="Enter profile link" class="input input-bordered w-full" required />
+            </div>
+            <div class="my-4">
+                <label class="label">
+                    <span class="label-text">Priority</span>
+                </label>
+                <select name="priority" class="select select-bordered w-full" required>
+                    <option value="everything">Everything</option>
+                    <option value="posts">Posts Only</option>
+                    <option value="comments">Comments Only</option>
+                </select>
+            </div>
+            <div class="my-4">
+                <label class="label">
+                    <span class="label-text">Frequency</span>
+                </label>
+                <select name="frequency" class="select select-bordered w-full" required>
+                    <option value="every 24 hours">Every 24 hours (low)</option>
+                    <option value="every 12 hours">Every 12 hours (medium)</option>
+                    <option value="every 6 hours">Every 6 hours (high)</option>
+                    <option value="every 1 hour">Every 1 hour (very high)</option>
+                    <option value="every 5 minutes">Every 5 minutes (critical)</option>
+                </select>
+            </div>
+            <div class="modal-action">
+                <button type="submit" class="btn btn-primary">Update</button>
+                <button type="button" class="btn btn-ghost" onclick="editThreatModal.close()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</dialog>
+
+<script>
+$(document).ready(function() {
+    loadWatchlist();
+
+    // Refresh table button
+    $('#refreshTable').click(function() {
+        loadWatchlist();
+    });
+
+    // Validate URL
+    function isValidUrl(url) {
+        return url.match(/^https?:\/\/.+/);
+    }
+
+    // Create new threat
+    $('#newThreatForm').submit(function(e) {
+        e.preventDefault();
+        const profileLink = $('input[name="profile_link"]', this).val();
+        if (!isValidUrl(profileLink)) {
+            alert('Please enter a valid URL');
+            return;
+        }
+        const formData = {
+            target_name: $('input[name="target_name"]', this).val(),
+            profile_link: profileLink,
+            priority: $('select[name="priority"]', this).val(),
+            frequency: $('select[name="frequency"]', this).val()
+        };
+
+        $.ajax({
+            url: '/api/watchlist-api/items',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                $('#newThreatModal').get(0).close();
+                loadWatchlist();
+                $('#newThreatForm')[0].reset();
+            },
+            error: function(xhr) {
+                alert('Error: ' + (xhr.responseJSON?.detail || 'Failed to create item'));
+            }
+        });
+    });
+
+    // Edit threat
+    $(document).on('click', '.edit-btn', function() {
+        const id = $(this).data('id');
+        $.ajax({
+            url: `/api/watchlist-api/items/${id}`,
+            type: 'GET',
+            success: function(data) {
+                $('#editThreatForm input[name="id"]').val(data.id);
+                $('#editThreatForm input[name="target_name"]').val(data.target_name);
+                $('#editThreatForm input[name="profile_link"]').val(data.profile_link);
+                $('#editThreatForm select[name="priority"]').val(data.priority);
+                $('#editThreatForm select[name="frequency"]').val(data.frequency);
+                $('#editThreatModal').get(0).showModal();
+            },
+            error: function(xhr) {
+                alert('Error: ' + (xhr.responseJSON?.detail || 'Failed to fetch item'));
+            }
+        });
+    });
+
+    // Update threat
+    $('#editThreatForm').submit(function(e) {
+        e.preventDefault();
+        const profileLink = $('input[name="profile_link"]', this).val();
+        if (!isValidUrl(profileLink)) {
+            alert('Please enter a valid URL');
+            return;
+        }
+        const id = $('input[name="id"]', this).val();
+        const formData = {
+            target_name: $('input[name="target_name"]', this).val(),
+            profile_link: profileLink,
+            priority: $('select[name="priority"]', this).val(),
+            frequency: $('select[name="frequency"]', this).val()
+        };
+
+        $.ajax({
+            url: `/api/watchlist-api/items/${id}`,
+            type: 'PUT',
+            contentType: 'application/json',
+            data: JSON.stringify(formData),
+            success: function(response) {
+                $('#editThreatModal').get(0).close();
+                loadWatchlist();
+            },
+            error: function(xhr) {
+                alert('Error: ' + (xhr.responseJSON?.detail || 'Failed to update item'));
+            }
+        });
+    });
+
+    // Delete threat
+    $(document).on('click', '.delete-btn', function() {
+        if (confirm('Are you sure you want to delete this item?')) {
+            const id = $(this).data('id');
+            $.ajax({
+                url: `/api/watchlist-api/items/${id}`,
+                type: 'DELETE',
+                success: function(response) {
+                    loadWatchlist();
+                },
+                error: function(xhr) {
+                    alert('Error: ' + (xhr.responseJSON?.detail || 'Failed to delete item'));
+                }
+            });
+        }
+    });
+
+    function loadWatchlist() {
+        $('#watchlistBody').html('<tr><td colspan="6">Loading...</td></tr>');
+        $.get('/api/watchlist-api/items', function(data) {
+            $('#watchlistBody').empty();
+            if (data.length === 0) {
+                $('#watchlistBody').append('<tr><td colspan="6">No items found</td></tr>');
+                return;
+            }
+            data.forEach(item => {
+                $('#watchlistBody').append(`
+                    <tr>
+                        <td>${item.target_name}</td>
+                        <td>${item.profile_link}</td>
+                        <td>${item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}</td>
+                        <td>${new Date(item.timestamp).toLocaleString()}</td>
+                        <td>${item.frequency.charAt(0).toUpperCase() + item.frequency.slice(1)}</td>
+                        <td>
+                            <div class="flex gap-2">
+                                <a href="/watchlist-profile/${item.id}" class="btn btn-sm btn-info">View Results</a>
+                                <button class="btn btn-sm btn-warning edit-btn" data-id="${item.id}">Edit</button>
+                                <button class="btn btn-sm btn-error delete-btn" data-id="${item.id}">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `);
+            });
+        }).fail(function(xhr) {
+            alert('Error: ' + (xhr.responseJSON?.detail || 'Failed to load watchlist'));
+            $('#watchlistBody').html('<tr><td colspan="6">Failed to load data</td></tr>');
+        });
+    }
+});
+</script>
+{% endblock %}

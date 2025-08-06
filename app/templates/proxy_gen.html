@@ -1,0 +1,190 @@
+<!-- app/templates/proxy_gen.html -->
+{% extends "base.html" %}
+{% block title %}Proxy Generator{% endblock %}
+
+{% block content %}
+<style>
+    .loading.hidden {
+        display: none;
+    }
+    .loading {
+        display: inline-block;
+    }
+</style>
+
+<h1 class="text-3xl font-bold mb-6">Proxy Generator</h1>
+
+<!-- Create Proxy Button -->
+<button id="create-proxy-btn" class="btn btn-primary mb-6" onclick="createProxy()">
+    <span id="create-btn-text">Create New Proxy</span>
+    <span id="create-btn-spinner" class="loading loading-spinner hidden"></span>
+</button>
+
+<!-- Create Proxy Modal -->
+<dialog id="createProxyModal" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold">Confirm Proxy Creation</h3>
+        <p class="py-4">Are you sure you want to proceed? Creating a Tor proxy will start a Docker container and consume system resources.</p>
+        <div class="modal-action">
+            <button class="btn btn-primary" onclick="confirmCreateProxy()">Proceed</button>
+            <form method="dialog">
+                <button class="btn btn-ghost">Cancel</button>
+            </form>
+        </div>
+    </div>
+</dialog>
+
+<!-- Table -->
+<div class="overflow-x-auto">
+    <table class="table table-zebra w-full" id="proxy-table">
+        <thead>
+            <tr>
+                <th>Container Name</th>
+                <th>Container IP</th>
+                <th>Tor Exit Node</th>
+                <th>Timestamp</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="proxy-table-body">
+            {% for proxy in proxies %}
+            <tr data-container-name="{{ proxy.container_name }}">
+                <td>{{ proxy.container_name }}</td>
+                <td>{{ proxy.container_ip }}</td>
+                <td>{{ proxy.tor_exit_node }}</td>
+                <td>{{ proxy.timestamp }}</td>
+                <td>
+                    <span class="badge {{ 'badge-success' if proxy.running else 'badge-error' }}">
+                        {{ 'Running' if proxy.running else 'Not Running' }}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-error btn-sm" onclick="openDeleteModal('{{ proxy.container_name }}')">Delete</button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Delete Proxy Modal -->
+<dialog id="deleteContainer" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <h3 class="text-lg font-bold">Confirm Stop Proxy</h3>
+        <p class="py-4">Are you sure you want to stop this proxy? This will terminate the Docker container and disconnect the Tor proxy.</p>
+        <input type="hidden" id="delete-container-name" value="">
+        <div class="modal-action">
+            <button class="btn btn-error" onclick="confirmDeleteProxy()">Delete</button>
+            <form method="dialog">
+                <button class="btn btn-ghost">Cancel</button>
+            </form>
+        </div>
+    </div>
+</dialog>
+
+<script>
+$(document).ready(function () {
+    setInterval(updateProxyTable, 10000);
+    updateProxyTable();
+});
+
+function createProxy() {
+    $('#createProxyModal').prop('open', true);
+}
+
+function confirmCreateProxy() {
+    $('#createProxyModal').prop('open', false);
+    $('#create-btn-text').addClass('hidden');
+    $('#create-btn-spinner').removeClass('hidden');
+    $('#create-proxy-btn').prop('disabled', true);
+
+    $.ajax({
+        url: '/api/proxy-gen/create',
+        method: 'POST',
+        timeout: 70000,
+        success: function (response) {
+            updateProxyTable(); 
+        },
+        error: function (xhr) {
+            console.error('Failed to create proxy:', xhr.responseJSON?.detail || 'Unknown error');
+        },
+        complete: function () {
+            $('#create-btn-text').removeClass('hidden');
+            $('#create-btn-spinner').addClass('hidden');
+            $('#create-proxy-btn').prop('disabled', false);
+        }
+    });
+}
+
+function openDeleteModal(containerName) {
+    $('#delete-container-name').val(containerName);
+    $('#deleteContainer').prop('open', true);
+}
+
+function confirmDeleteProxy() {
+    const containerName = $('#delete-container-name').val();
+    $('#deleteContainer').prop('open', false);
+
+    $.ajax({
+        url: `/api/proxy-gen/delete/${containerName}`,
+        method: 'DELETE',
+        success: function (response) {
+            showFlashMessage('success', response.message);
+            updateProxyTable();
+        },
+        error: function (xhr) {
+            const errorMsg = xhr.responseJSON?.detail || 'Failed to delete proxy';
+            showFlashMessage('error', errorMsg);
+        }
+    });
+}
+
+function updateProxyTable() {
+    $.ajax({
+        url: '/api/proxy-gen/list',
+        method: 'GET',
+        success: function (response) {
+            const tbody = $('#proxy-table-body');
+            tbody.empty();
+            response.proxies.forEach(proxy => {
+                const row = `
+                    <tr data-container-name="${proxy.container_name}">
+                        <td>${proxy.container_name}</td>
+                        <td>${proxy.container_ip}</td>
+                        <td>${proxy.tor_exit_node}</td>
+                        <td>${proxy.timestamp}</td>
+                        <td>
+                            <span class="badge ${proxy.running ? 'badge-success' : 'badge-error'}">
+                                ${proxy.running ? 'Running' : 'Not Running'}
+                            </span>
+                        </td>
+                        <td>
+                            <button class="btn btn-error btn-sm" onclick="openDeleteModal('${proxy.container_name}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+                tbody.append(row);
+            });
+        },
+        error: function (xhr) {
+            const errorMsg = xhr.responseJSON?.detail || 'Failed to fetch proxy list';
+            showFlashMessage('error', errorMsg);
+        }
+    });
+}
+
+function showFlashMessage(category, text) {
+    const alertClass = category === 'success' ? 'alert-success' : 'alert-error';
+    const flashMessage = `
+        <div class="alert ${alertClass} shadow-lg mb-4 flex justify-between items-center flash-message">
+            <div>
+                <span>${text}</span>
+            </div>
+            <button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button>
+        </div>
+    `;
+    $('.container.mx-auto .mb-4').prepend(flashMessage);
+}
+</script>
+{% endblock %}

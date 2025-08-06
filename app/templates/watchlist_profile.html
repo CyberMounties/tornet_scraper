@@ -1,0 +1,229 @@
+<!-- app/templates/watchlist_profile.html -->
+{% extends "base.html" %}
+{% block title %}Watchlist Profile: {{ watchlist_item.target_name|default('Unknown') }}{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-3xl font-bold text-base-content mb-4">Watchlist Profile: {{ watchlist_item.target_name|default('Unknown') }}</h1>
+    <div class="flex gap-4">
+        <span>Priority: <span class="badge badge-secondary">{{ watchlist_item.priority|capitalize|default('N/A') }}</span></span>
+        <span>Frequency: <span class="badge badge-secondary">{{ watchlist_item.frequency|capitalize|default('N/A') }}</span></span>
+    </div>
+</div>
+
+<!-- Custom Jinja2 filter for human-readable date -->
+{% macro format_datetime(value) %}
+    {{ value.strftime('%I:%M:%S %p %B %-d %Y')|replace(' 0', ' ') }}
+{% endmacro %}
+
+<!-- Accordions for Scans -->
+<div class="space-y-4">
+    <input type="radio" name="scan-accordion" value="none" class="hidden" checked />
+    {% if scans %}
+        {% for scan in scans %}
+        <div class="collapse collapse-arrow bg-base-100">
+            <input type="radio" name="scan-accordion" value="scan-{{ scan.id }}" />
+            <div class="collapse-title text-xl font-medium">
+                Scan: {{ format_datetime(scan.scan_timestamp|default('Unknown')) }}
+                <span class="badge badge-info ml-2">Posts: {{ scan.profile_data.post_count|default(0) }}</span>
+                <span class="badge badge-warning ml-2">Comments: {{ scan.profile_data.comment_count|default(0) }}</span>
+                {% if loop.index0 == 0 and scans|length >= 2 %}
+                    {% if scan.profile_data.post_count|default(0) != scans[1].profile_data.post_count|default(0) or scan.profile_data.comment_count|default(0) != scans[1].profile_data.comment_count|default(0) %}
+                        <span class="badge badge-success ml-2">New results detected</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+            <div class="collapse-content">
+                <div class="flex justify-end mb-4">
+                    <a href="/api/watchlist-api/download-scan/{{ scan.id }}" class="btn btn-primary">Download Results</a>
+                </div>
+
+                <!-- Posts Table -->
+                <h3 class="text-lg font-semibold mb-2">Posts</h3>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra w-full" id="posts-table-{{ scan.id }}">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Post URI</th>
+                                <th>Creation Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if scan.profile_data.posts and scan.profile_data.posts is iterable %}
+                                {% for post in scan.profile_data.posts[:15] %}
+                                <tr>
+                                    <td>{{ post.title|default('N/A') }}</td>
+                                    <td>{{ post.post_url|default('N/A') }}</td>
+                                    <td>{{ post.date|default('N/A') }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="3">No posts found</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if scan.profile_data.post_count > 15 %}
+                <div class="flex justify-center mt-4">
+                    <div class="btn-group" data-table="posts-table-{{ scan.id }}" data-items='{{ scan.profile_data.posts|tojson }}' data-type="posts" data-total-pages="{{ (scan.profile_data.post_count }}">
+                        <button class="btn btn-sm" onclick="changePage(this, 'prev')">«</button>
+                        <button class="btn btn-sm btn-active" data-page="1">1</button>
+                        <button class="btn btn-sm" data-page="2">2</button>
+                        <button class="btn btn-sm" data-page="3">3</button>
+                        <button class="btn btn-sm" data-page="4">4</button>
+                        <button class="btn btn-sm" data-page="5">5</button>
+                        <button class="btn btn-sm" onclick="changePage(this, 'next')">»</button>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Comments Table -->
+                <h3 class="text-lg font-semibold mt-6 mb-2">Comments</h3>
+                <div class="overflow-x-auto">
+                    <table class="table table-zebra w-full" id="comments-table-{{ scan.id }}">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Post URI</th>
+                                <th>Creation Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if scan.profile_data.comments and scan.profile_data.comments is iterable %}
+                                {% for comment in scan.profile_data.comments[:15] %}
+                                <tr>
+                                    <td>{{ comment.comment|default('N/A')|truncate(50, True, '...') }}</td>
+                                    <td>{{ comment.post_comment_url|default('N/A') }}</td>
+                                    <td>{{ comment.date|default('N/A') }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="3">No comments found</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if scan.profile_data.comment_count > 15 %}
+                <div class="flex justify-center mt-4">
+                    <div class="btn-group" data-table="comments-table-{{ scan.id }}" data-items='{{ scan.profile_data.comments|tojson }}' data-type="comments" data-total-pages="{{ (scan.profile_data.comment_count }}">
+                        <button class="btn btn-sm" onclick="changePage(this, 'prev')">«</button>
+                        <button class="btn btn-sm btn-active" data-page="1">1</button>
+                        <button class="btn btn-sm" data-page="2">2</button>
+                        <button class="btn btn-sm" data-page="3">3</button>
+                        <button class="btn btn-sm" data-page="4">4</button>
+                        <button class="btn btn-sm" data-page="5">5</button>
+                        <button class="btn btn-sm" onclick="changePage(this, 'next')">»</button>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        <div class="alert alert-info">
+            <span>No scans available for this profile yet.</span>
+        </div>
+    {% endif %}
+</div>
+
+<script>
+    $(document).ready(function() {
+        const $accordionInputs = $('.collapse input[type="radio"]');
+        $accordionInputs.on('click', function() {
+            try {
+                if (this.checked && $(this).attr('data-was-checked') === 'true') {
+                    this.checked = false;
+                    $('input[name="scan-accordion"][value="none"]')[0].checked = true;
+                    console.log('Accordion closed: ' + $(this).val());
+                }
+                $accordionInputs.each(function() {
+                    $(this).attr('data-was-checked', this.checked);
+                });
+            } catch (e) {
+                console.error('Accordion error:', e);
+            }
+        });
+
+        // Pagination function
+        function changePage(button, action) {
+            try {
+                const $btnGroup = $(button).closest('.btn-group');
+                const tableId = $btnGroup.data('table');
+                const items = JSON.parse($btnGroup.attr('data-items'));
+                const itemType = $btnGroup.data('type');
+                const totalPages = parseInt($btnGroup.data('total-pages')) || 1;
+                let currentPage = parseInt($btnGroup.find('.btn-active').data('page')) || 1;
+
+                // Update current page
+                if (action === 'prev' && currentPage > 1) {
+                    currentPage--;
+                } else if (action === 'next' && currentPage < totalPages) {
+                    currentPage++;
+                } else if ($(button).data('page')) {
+                    currentPage = parseInt($(button).data('page'));
+                }
+
+                // Calculate page button range (show up to 5 buttons)
+                const maxButtons = 5;
+                let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+                let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+                if (endPage - startPage + 1 < maxButtons) {
+                    startPage = Math.max(1, endPage - maxButtons + 1);
+                }
+
+                // Update pagination buttons
+                $btnGroup.find('.btn:not([onclick])').remove();
+                for (let page = startPage; page <= endPage; page++) {
+                    const $btn = $(`<button class="btn btn-sm" data-page="${page}">${page}</button>`);
+                    if (page === currentPage) {
+                        $btn.addClass('btn-active');
+                    }
+                    $btn.click(function() { changePage(this); });
+                    $btnGroup.find('.btn[onclick="changePage(this, \'next\')"]').before($btn);
+                }
+
+                // Render table rows
+                const $tableBody = $(`#${tableId} tbody`);
+                $tableBody.empty();
+                const itemsPerPage = 15;
+                const start = (currentPage - 1) * itemsPerPage;
+                const end = start + itemsPerPage;
+                const slicedItems = items.slice(start, end);
+
+                if (slicedItems.length === 0) {
+                    $tableBody.append(`<tr><td colspan="3">No ${itemType} found</td></tr>`);
+                    return;
+                }
+
+                slicedItems.forEach(item => {
+                    if (itemType === 'posts') {
+                        $tableBody.append(`
+                            <tr>
+                                <td>${item.title || 'N/A'}</td>
+                                <td>${item.post_url || 'N/A'}</td>
+                                <td>${item.date || 'N/A'}</td>
+                            </tr>
+                        `);
+                    } else if (itemType === 'comments') {
+                        $tableBody.append(`
+                            <tr>
+                                <td>${item.comment || 'N/A'}</td>
+                                <td>${item.post_comment_url || 'N/A'}</td>
+                                <td>${item.date || 'N/A'}</td>
+                            </tr>
+                        `);
+                    }
+                });
+                console.log(`Rendered page ${currentPage} for ${itemType} table ${tableId}`);
+            } catch (e) {
+                console.error('Pagination error:', e);
+            }
+        }
+
+        $('.btn-group .btn[data-page]').click(function() {
+            changePage(this);
+        });
+    });
+</script>
+{% endblock %}

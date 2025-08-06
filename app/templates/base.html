@@ -1,0 +1,97 @@
+<!-- app/templates/base.html -->
+<!DOCTYPE html>
+<html lang="en" data-theme="nord">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} - Tornet Scraper</title>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+</head>
+<body class="min-h-screen bg-base-200">
+    <!-- Navbar -->
+    <div class="navbar bg-base-100 shadow-xl">
+        <div class="navbar-start">
+            <a class="btn btn-ghost text-xl">Tornet Scraper</a>
+        </div>
+        <div class="navbar-center hidden lg:flex">
+            <ul class="menu menu-horizontal px-1">
+                <li><a href="/" class="btn btn-ghost">Dashboard</a></li>
+                <li><a href="/proxy-gen" class="btn btn-ghost">Proxy Gen</a></li>
+                <li><a href="/manage-api" class="btn btn-ghost">API Management</a></li>
+                <li><a href="/bot-profile" class="btn btn-ghost">Bot Profile</a></li>
+                <li><a href="/marketplace-scan" class="btn btn-ghost">Marketplace Scan</a></li>
+                <li><a href="/posts-scans" class="btn btn-ghost">Posts Scans</a></li>
+                <li><a href="/watchlist" class="btn btn-ghost">Watchlist</a></li>
+            </ul>
+        </div>
+        <div class="navbar-end">
+            <div class="dropdown dropdown-end lg:hidden">
+                <label tabindex="0" class="btn btn-ghost">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                </label>
+                <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 p-2 shadow bg-base-100 rounded-box w-52">
+                    <li><a href="/">Dashboard</a></li>
+                    <li><a href="/proxy-gen">Proxy Gen</a></li>
+                    <li><a href="/manage-api">API Management</a></li>
+                    <li><a href="/bot-profile">Bot Profile</a></li>
+                    <li><a href="/marketplace-scan">Marketplace Scan</a></li>
+                    <li><a href="/posts-scans" class="btn btn-ghost">Posts Scans</a></li>
+                    <li><a href="/watchlist" class="btn btn-ghost">Watchlist</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <main class="container mx-auto p-4 mt-6 bg-base-300 rounded-box">
+        <!-- Flash Messages Container -->
+        <div class="mb-4" id="flash-messages">
+            {% if messages %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.category | default('info') }} shadow-lg mb-4 flex justify-between items-center flash-message">
+                        <div>
+                            <span>{{ message.text }}</span>
+                        </div>
+                        <button class="btn btn-sm btn-circle btn-ghost" onclick="this.parentElement.remove()">✕</button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div>
+
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <script>
+        // Automatically remove flash messages after 5 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            function removeFlashMessages() {
+                const flashMessages = document.querySelectorAll('.flash-message');
+                flashMessages.forEach(function(message) {
+                    // Skip if already fading
+                    if (message.style.opacity === '0') return;
+                    setTimeout(function() {
+                        message.style.transition = 'opacity 0.5s ease';
+                        message.style.opacity = '0';
+                        setTimeout(function() {
+                            message.remove();
+                        }, 500);
+                    }, 5000);
+                });
+            }
+            removeFlashMessages();
+            const flashContainer = document.querySelector('#flash-messages');
+            if (flashContainer) {
+                const observer = new MutationObserver(function() {
+                    removeFlashMessages();
+                });
+                observer.observe(flashContainer, { childList: true });
+            }
+        });
+    </script>
+</body>
+</html>

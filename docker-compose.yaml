@@ -1,0 +1,6 @@
+services:
+  tornet_scraper:
+    build: .
+    container_name: tornet_scraper
+    ports:
+      - "8000:8000"
